@@ -1,6 +1,5 @@
 using UnityEngine;
 
-// 靶心碰撞+消失+随机刷新核心脚本，挂载到每个靶心
 public class TargetController : MonoBehaviour
 {
     [Header("刷新配置")]
@@ -13,9 +12,7 @@ public class TargetController : MonoBehaviour
     [Header("避免重叠")]
     public float safeDistance = 1.5f;
 
-    // 固定大小 0.1（已经写死，不用改）
     private float fixedScale = 0.1f;
-
     private SpriteRenderer sr;
     private CircleCollider2D col;
     private static GameObject[] allTargets;
@@ -25,71 +22,73 @@ public class TargetController : MonoBehaviour
         sr = GetComponent<SpriteRenderer>();
         col = GetComponent<CircleCollider2D>();
 
-        if (allTargets == null)
-        {
-            allTargets = GameObject.FindGameObjectsWithTag("Target");
-        }
+        PhysicsMaterial2D bounceMaterial = new PhysicsMaterial2D();
+        bounceMaterial.bounciness = 0.6f;
+        bounceMaterial.friction = 0.2f;
+        col.sharedMaterial = bounceMaterial;
+
+        // 每次启动都重新找所有靶子（解决黄绿靶子不生效问题）
+        allTargets = GameObject.FindGameObjectsWithTag("Target");
 
         SetRandomPosition();
-
-        // 强制设置大小为 0.1
-        transform.localScale = Vector3.one * fixedScale;
+        ForceScale();
     }
 
-    void OnTriggerEnter2D(Collider2D other)
+    void OnCollisionEnter2D(Collision2D other)
     {
-        if (other.CompareTag("JellyBall"))
+        if (other.collider.CompareTag("JellyBall"))
         {
-            sr.enabled = false;
-            col.enabled = false;
-            Invoke("RefreshTarget", refreshTime);
+            Invoke(nameof(HideTarget), 0.1f);
         }
+    }
+
+    void HideTarget()
+    {
+        sr.enabled = false;
+        col.enabled = false;
+        Invoke(nameof(RefreshTarget), refreshTime);
     }
 
     void RefreshTarget()
     {
         SetRandomPosition();
-
-        // 刷新时 强制锁定大小为 0.1
-        transform.localScale = Vector3.one * fixedScale;
-
+        ForceScale(); // 强制大小0.1
         sr.enabled = true;
         col.enabled = true;
+    }
+
+    void ForceScale()
+    {
+        transform.localScale = new Vector3(fixedScale, fixedScale, 1f);
     }
 
     void SetRandomPosition()
     {
         Vector3 newPos = Vector3.zero;
         bool positionValid = false;
-        int maxAttempts = 10;
         int attempts = 0;
-        
-        while (!positionValid && attempts < maxAttempts)
+
+        while (!positionValid && attempts < 10)
         {
             float randomX = Random.Range(minX, maxX);
             float randomY = Random.Range(minY, maxY);
             newPos = new Vector3(randomX, randomY, 0);
-            
             positionValid = IsPositionSafe(newPos);
             attempts++;
         }
-        
+
         transform.position = newPos;
     }
 
     bool IsPositionSafe(Vector3 newPos)
     {
         if (allTargets == null) return true;
-        
+
         foreach (GameObject target in allTargets)
         {
             if (target == gameObject) continue;
-            
-            float distance = Vector3.Distance(newPos, target.transform.position);
-            if (distance < safeDistance)
-            {
+            if (Vector3.Distance(newPos, target.transform.position) < safeDistance)
                 return false;
-            }
         }
         return true;
     }
