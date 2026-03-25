@@ -1,6 +1,6 @@
 using UnityEngine;
 
-[RequireComponent(typeof(Rigidbody2D), typeof(Collider2D))] 
+[RequireComponent(typeof(Rigidbody2D), typeof(Collider2D))]
 public class JellyDragShoot : MonoBehaviour
 {
     private Rigidbody2D rb;
@@ -13,12 +13,15 @@ public class JellyDragShoot : MonoBehaviour
     public float maxDragDistance = 3.5f;
 
     [Header("=== 果冻变形手感（Q弹核心）===")]
-    // 核心优化：大幅降低变形系数，让变形更克制
-    public float stretchAmount = 0.1f;        // 从0.35→0.1，横向拉伸幅度缩小70%
-    public float squashAmount = 0.08f;        // 从0.2→0.08，纵向压扁幅度缩小60%
-    public float maxStretchScale = 1.2f;      // 新增：横向最大缩放（不超过原始的1.2倍）
-    public float minSquashScale = 0.85f;      // 新增：纵向最小缩放（不低于原始的0.85倍）
+    public float stretchAmount = 0.1f;        
+    public float squashAmount = 0.08f;
+    public float maxStretchScale = 1.2f;
+    public float minSquashScale = 0.85f;
     private Vector3 originalScale;
+
+    [Header("=== 自转效果（发射后旋转）===")]
+    public float minRotateSpeed = 200f;
+    public float maxRotateSpeed = 500f;
 
     [Header("=== 边界限制 ===")]
     public float minDragY = -4.5f;
@@ -33,12 +36,18 @@ public class JellyDragShoot : MonoBehaviour
         originalScale = transform.localScale;
         originalJellyPos = transform.position;
 
+        // 反弹物理材质
+        PhysicsMaterial2D bounceMat = new PhysicsMaterial2D();
+        bounceMat.bounciness = 0.6f;
+        bounceMat.friction = 0.2f;
+        jellyCollider.sharedMaterial = bounceMat;
+
         jellyCollider.isTrigger = false;
         jellyCollider.enabled = true;
 
         rb.velocity = Vector2.zero;
         rb.angularVelocity = 0f;
-        rb.bodyType = RigidbodyType2D.Kinematic;
+        rb.bodyType = RigidbodyType2D.Kinematic; // 这里已修复
 
         InvokeRepeating("CheckJellyIdle", 6f, 6f);
     }
@@ -52,7 +61,7 @@ public class JellyDragShoot : MonoBehaviour
                 isDragging = true;
                 Vector3 mouseWorld = Camera.main.ScreenToWorldPoint(Input.mousePosition);
                 startPos = new Vector2(mouseWorld.x, mouseWorld.y);
-                rb.bodyType = RigidbodyType2D.Kinematic;
+                rb.bodyType = RigidbodyType2D.Kinematic; // 这里已修复
             }
         }
 
@@ -73,13 +82,10 @@ public class JellyDragShoot : MonoBehaviour
 
             transform.position = new Vector3(dragPos.x, dragPos.y, transform.position.z);
 
-            // ========== 核心优化：限制变形范围，避免过度变形 ==========
             float dragMag = dragDir.magnitude;
-            // 计算目标缩放，但限制最大/最小值
             float targetScaleX = originalScale.x + dragMag * stretchAmount;
             float targetScaleY = originalScale.y - dragMag * squashAmount;
             
-            // 强制限制缩放范围，确保变形不夸张
             targetScaleX = Mathf.Clamp(targetScaleX, originalScale.x, originalScale.x * maxStretchScale);
             targetScaleY = Mathf.Clamp(targetScaleY, originalScale.y * minSquashScale, originalScale.y);
 
@@ -89,36 +95,24 @@ public class JellyDragShoot : MonoBehaviour
         if (Input.GetMouseButtonUp(0) && isDragging)
         {
             isDragging = false;
+            transform.localScale = originalScale;
 
-            // 优化：松手后平滑恢复形状（不是瞬间变圆，更像果冻）
-            Invoke(nameof(ResetScaleSmooth), 0.01f);
-
-            rb.bodyType = RigidbodyType2D.Dynamic;
+            // 发射
+            rb.bodyType = RigidbodyType2D.Dynamic; // 这里已修复
             Vector2 shootDir = startPos - dragPos;
             rb.velocity = shootDir * shootForce;
+
+            // 自转效果
+            float rotateSpeed = Random.Range(minRotateSpeed, maxRotateSpeed);
+            int rotateDir = Random.value > 0.5f ? 1 : -1;
+            rb.angularVelocity = rotateSpeed * rotateDir;
         }
     }
 
     private void OnCollisionEnter2D(Collision2D other)
     {
-        // 优化：碰撞变形也更克制（从0.85→0.9）
         transform.localScale = originalScale * 0.9f;
         Invoke(nameof(ResetScale), 0.08f);
-    }
-
-    // 新增：平滑恢复形状（替代瞬间恢复）
-    private void ResetScaleSmooth()
-    {
-        transform.localScale = Vector3.Lerp(transform.localScale, originalScale, 0.5f);
-        // 确保最终恢复到原始形状
-        if (Vector3.Distance(transform.localScale, originalScale) > 0.01f)
-        {
-            Invoke(nameof(ResetScaleSmooth), 0.01f);
-        }
-        else
-        {
-            transform.localScale = originalScale;
-        }
     }
 
     private void ResetScale() => transform.localScale = originalScale;
@@ -130,12 +124,12 @@ public class JellyDragShoot : MonoBehaviour
         Vector2 mouseWorld = Camera.main.ScreenToWorldPoint(mouseScreen);
 
         Collider2D hitCollider = Physics2D.OverlapPoint(mouseWorld);
-        return hitCollider != null && hitCollider.gameObject == this.gameObject;
+        return hitCollider != null && hitCollider.gameObject == gameObject;
     }
 
     public void ResetJelly()
     {
-        rb.bodyType = RigidbodyType2D.Kinematic;
+        rb.bodyType = RigidbodyType2D.Kinematic; // 这里已修复
         rb.velocity = Vector2.zero;
         rb.angularVelocity = 0f;
         transform.position = originalJellyPos;
