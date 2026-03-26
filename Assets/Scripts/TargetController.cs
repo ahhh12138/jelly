@@ -1,5 +1,8 @@
 using UnityEngine;
+using UnityEngine.UI;
+using TMPro;
 using System.Collections;
+using UnityEngine.SceneManagement;
 
 public class TargetController : MonoBehaviour
 {
@@ -21,6 +24,10 @@ public class TargetController : MonoBehaviour
     private static GameObject[] allTargets;
     private Color originalColor;
 
+    //积分系统
+    public static int count;
+    public TextMeshProUGUI countText;
+
     void Start()
     {
         sr = GetComponent<SpriteRenderer>();
@@ -35,6 +42,8 @@ public class TargetController : MonoBehaviour
         allTargets = GameObject.FindGameObjectsWithTag("Target");
         SetRandomPosition();
         ForceScale();
+
+        count = 0;
     }
 
     void OnCollisionEnter2D(Collision2D other)
@@ -43,6 +52,7 @@ public class TargetController : MonoBehaviour
         {
             SpawnHitParticle(originalColor);
             StartCoroutine(FadeOutAndHide());
+            AddCount();
         }
     }
 
@@ -102,7 +112,7 @@ public class TargetController : MonoBehaviour
         SetRandomPosition();
         ForceScale();
     }
-
+     
     void ForceScale()
     {
         transform.localScale = new Vector3(fixedScale, fixedScale, 1f);
@@ -135,5 +145,18 @@ public class TargetController : MonoBehaviour
                 return false;
         }
         return true;
+    }
+
+    void AddCount()
+    {
+        count++;
+        countText.text =count.ToString();
+    }
+
+    public void Restart()
+    {
+        count = 0;
+        SceneManager.LoadScene("StartScene");
+        Time.timeScale = 1f;
     }
 }
