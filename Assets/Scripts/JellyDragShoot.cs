@@ -26,17 +26,25 @@ public class JellyDragShoot : MonoBehaviour
     [Header("=== 边界限制 ===")]
     public float minDragY = -4.5f;
 
+    [Header("=== 音效 🎵 ===")]
+    public AudioClip chargeSound;
+    public AudioClip collisionSound;
+    private AudioSource audioSource;
+
     private Vector3 originalJellyPos;
     private Collider2D jellyCollider;
+
+    // 🛑 终极防鬼畜专用
+    private bool isResting = false;
 
     void Start()
     {
         rb = GetComponent<Rigidbody2D>();
         jellyCollider = GetComponent<Collider2D>();
+        audioSource = GetComponent<AudioSource>();
         originalScale = transform.localScale;
         originalJellyPos = transform.position;
 
-        // 反弹物理材质
         PhysicsMaterial2D bounceMat = new PhysicsMaterial2D();
         bounceMat.bounciness = 0.6f;
         bounceMat.friction = 0.2f;
@@ -47,7 +55,7 @@ public class JellyDragShoot : MonoBehaviour
 
         rb.velocity = Vector2.zero;
         rb.angularVelocity = 0f;
-        rb.bodyType = RigidbodyType2D.Kinematic; // 这里已修复
+        rb.bodyType = RigidbodyType2D.Kinematic;
 
         InvokeRepeating("CheckJellyIdle", 6f, 6f);
     }
@@ -59,9 +67,17 @@ public class JellyDragShoot : MonoBehaviour
             if (IsPointOnJelly_Fixed())
             {
                 isDragging = true;
+                isResting = false; 
                 Vector3 mouseWorld = Camera.main.ScreenToWorldPoint(Input.mousePosition);
                 startPos = new Vector2(mouseWorld.x, mouseWorld.y);
-                rb.bodyType = RigidbodyType2D.Kinematic; // 这里已修复
+                rb.bodyType = RigidbodyType2D.Kinematic;
+
+                if (audioSource && chargeSound)
+                {
+                    audioSource.clip = chargeSound;
+                    audioSource.loop = true;
+                    audioSource.Play();
+                }
             }
         }
 
@@ -95,14 +111,19 @@ public class JellyDragShoot : MonoBehaviour
         if (Input.GetMouseButtonUp(0) && isDragging)
         {
             isDragging = false;
+            isResting = false; 
             transform.localScale = originalScale;
 
-            // 发射
-            rb.bodyType = RigidbodyType2D.Dynamic; // 这里已修复
+            if (audioSource)
+            {
+                audioSource.Stop();
+                audioSource.loop = false;
+            }
+
+            rb.bodyType = RigidbodyType2D.Dynamic;
             Vector2 shootDir = startPos - dragPos;
             rb.velocity = shootDir * shootForce;
 
-            // 自转效果
             float rotateSpeed = Random.Range(minRotateSpeed, maxRotateSpeed);
             int rotateDir = Random.value > 0.5f ? 1 : -1;
             rb.angularVelocity = rotateSpeed * rotateDir;
@@ -111,6 +132,27 @@ public class JellyDragShoot : MonoBehaviour
 
     private void OnCollisionEnter2D(Collision2D other)
     {
+        // ==========================================
+        // 🛑 ULTIMATE 终极防鬼畜（绝对不抖）
+        // ==========================================
+        if (other.gameObject.CompareTag("Boundary"))
+        {
+            if (rb.velocity.magnitude < 1.0f)
+            {
+                rb.velocity = Vector2.zero;
+                rb.angularVelocity = 0f;
+                rb.isKinematic = true; 
+                isResting = true;
+            }
+        }
+
+        // 碰撞音效
+        if (audioSource && collisionSound && !isResting)
+        {
+            audioSource.PlayOneShot(collisionSound);
+        }
+
+        // 果冻挤压效果
         transform.localScale = originalScale * 0.9f;
         Invoke(nameof(ResetScale), 0.08f);
     }
@@ -119,17 +161,15 @@ public class JellyDragShoot : MonoBehaviour
 
     private bool IsPointOnJelly_Fixed()
     {
-        Vector3 mouseScreen = Input.mousePosition;
-        mouseScreen.z = Camera.main.WorldToScreenPoint(transform.position).z;
-        Vector2 mouseWorld = Camera.main.ScreenToWorldPoint(mouseScreen);
-
-        Collider2D hitCollider = Physics2D.OverlapPoint(mouseWorld);
-        return hitCollider != null && hitCollider.gameObject == gameObject;
+        Vector2 mouseWorld = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        Collider2D hit = Physics2D.OverlapPoint(mouseWorld);
+        return hit != null && hit.gameObject == gameObject;
     }
 
     public void ResetJelly()
     {
-        rb.bodyType = RigidbodyType2D.Kinematic; // 这里已修复
+        isResting = false;
+        rb.bodyType = RigidbodyType2D.Kinematic;
         rb.velocity = Vector2.zero;
         rb.angularVelocity = 0f;
         transform.position = originalJellyPos;
@@ -139,7 +179,9 @@ public class JellyDragShoot : MonoBehaviour
 
     void CheckJellyIdle()
     {
-        if (rb.velocity.magnitude < 0.1f && Vector2.Distance(transform.position, originalJellyPos) > 0.2f)
+        if (!isDragging && !isResting && rb.velocity.magnitude < 0.2f)
+        {
             ResetJelly();
+        }
     }
 }

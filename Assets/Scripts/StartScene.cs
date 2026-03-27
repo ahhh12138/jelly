@@ -7,7 +7,7 @@ public class StartScene : MonoBehaviour
 {
     public void GameStart()
         {
-            SceneManager.LoadScene("SampleScene");
+            SceneManager.LoadScene("Main");
             Debug.Log("switch");
     }
 }

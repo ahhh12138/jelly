@@ -6,6 +6,7 @@ TagManager:
   tags:
   - JellyBall
   - Target
+  - Boundary
   layers:
   - Default
   - TransparentFX
